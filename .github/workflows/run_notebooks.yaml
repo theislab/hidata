@@ -31,7 +31,7 @@ jobs:
           python-version: "3.13"
       - name: Install uv
         run: pip install uv
-      - name: Install donordata and notebook dependencies
+      - name: Install hidata and notebook dependencies
         run: uv pip install --system ".[ehr,ml,tutorials]" "patpy @ git+https://github.com/lueckenlab/patpy.git@cellink_integration" nbconvert ipykernel
       - name: Run ${{ matrix.notebook }}
         run: jupyter nbconvert --to notebook --execute ${{ matrix.notebook }}

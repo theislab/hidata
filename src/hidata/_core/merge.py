@@ -9,7 +9,7 @@ import pandas as pd
 import scipy.sparse as sp
 from anndata import AnnData
 
-from donordata._core.donordata import DonorData
+from hidata._core.hidata import HiData
 
 
 def _stack_rows(values: list, join: str):
@@ -39,25 +39,25 @@ def _concat_level(containers: list, is_table: bool, key: str, label, keys, join)
 
 
 def concat(
-    dds: Sequence[DonorData] | Mapping[str, DonorData],
+    hds: Sequence[HiData] | Mapping[str, HiData],
     *,
     label: str | None = None,
     join: Literal["inner", "outer"] = "inner",
     index_unique: str | None = None,
-) -> DonorData:
-    """Concatenate cohorts along the donor axis.
+) -> HiData:
+    """Concatenate cohorts along the group axis.
 
-    Donor and sample identifiers must be unique across the inputs. Cells are concatenated with
-    :func:`anndata.concat`. Donor- and sample-aligned matrices present in every input with matching
+    Group and subgroup identifiers must be unique across the inputs. Cells are concatenated with
+    :func:`anndata.concat`. Group- and subgroup-aligned matrices present in every input with matching
     widths are stacked. Pairwise matrices are dropped because they are undefined across cohorts.
 
     Parameters
     ----------
-    dds
-        DonorData objects with the same identifiers and the same kind of ``D`` and ``S``, either all
+    hds
+        HiData objects with the same identifiers and the same kind of ``G`` and ``S``, either all
         tables or all AnnData. A mapping uses its keys as cohort labels.
     label
-        Donor table column that records the cohort of every donor. Requires a mapping, or uses the
+        Group table column that records the cohort of every group. Requires a mapping, or uses the
         position of each input otherwise.
     join
         How to combine the variables of ``C`` and of AnnData levels.
@@ -67,54 +67,54 @@ def concat(
 
     Returns
     -------
-    DonorData
+    HiData
     """
-    if isinstance(dds, Mapping):
-        keys, dds = list(dds.keys()), list(dds.values())
+    if isinstance(hds, Mapping):
+        keys, hds = list(hds.keys()), list(hds.values())
     else:
-        dds = list(dds)
-        keys = [str(i) for i in range(len(dds))]
-    if not dds:
+        hds = list(hds)
+        keys = [str(i) for i in range(len(hds))]
+    if not hds:
         raise ValueError("Nothing to concatenate.")
-    donor_id, sample_id = dds[0].donor_id, dds[0].sample_id
-    if any(dd.donor_id != donor_id or dd.sample_id != sample_id for dd in dds):
-        raise ValueError("All inputs must share the same donor_id and sample_id.")
-    kinds = {dd.D_type for dd in dds}
+    group_id, subgroup_id = hds[0].group_id, hds[0].subgroup_id
+    if any(hd.group_id != group_id or hd.subgroup_id != subgroup_id for hd in hds):
+        raise ValueError("All inputs must share the same group_id and subgroup_id.")
+    kinds = {hd.G_type for hd in hds}
     if len(kinds) != 1 or kinds == {"mudata"}:
-        raise ValueError(f"Cannot concatenate D of kinds {sorted(kinds)}, use all tables or all AnnData.")
-    if sample_id is not None and len({dd._S_is_table for dd in dds}) != 1:
-        raise ValueError("Cannot concatenate sample levels of different kinds, use all tables or all AnnData.")
-    if any(not isinstance(dd.C, AnnData) for dd in dds):
+        raise ValueError(f"Cannot concatenate G of kinds {sorted(kinds)}, use all tables or all AnnData.")
+    if subgroup_id is not None and len({hd._S_is_table for hd in hds}) != 1:
+        raise ValueError("Cannot concatenate subgroup levels of different kinds, use all tables or all AnnData.")
+    if any(not isinstance(hd.C, AnnData) for hd in hds):
         raise ValueError("concat requires C to be an AnnData in every input.")
-    if any(type(level).__name__ == "EHRData" for dd in dds for level in (dd._D, dd._S)):
+    if any(type(level).__name__ == "EHRData" for hd in hds for level in (hd._G, hd._S)):
         raise ValueError("concat cannot combine EHRData levels, their time axes would be lost.")
 
-    for level in ("donor", "sample") if sample_id is not None else ("donor",):
-        names = pd.Index(np.concatenate([dd.levels[level].obs_names.to_numpy() for dd in dds]))
+    for level in ("group", "subgroup") if subgroup_id is not None else ("group",):
+        names = pd.Index(np.concatenate([hd.levels[level].obs_names.to_numpy() for hd in hds]))
         if not names.is_unique:
             duplicated = names[names.duplicated()].unique()[:8].tolist()
             raise ValueError(f"{level.capitalize()} identifiers are not unique across inputs: {duplicated}")
 
-    D, obsm = _concat_level([dd._D for dd in dds], kinds == {"table"}, donor_id, label, keys, join)
-    S, sample_obsm = None, None
-    if sample_id is not None:
-        S, sample_obsm = _concat_level([dd._S for dd in dds], dds[0]._S_is_table, sample_id, None, keys, join)
+    G, obsm = _concat_level([hd._G for hd in hds], kinds == {"table"}, group_id, label, keys, join)
+    S, subgroup_obsm = None, None
+    if subgroup_id is not None:
+        S, subgroup_obsm = _concat_level([hd._S for hd in hds], hds[0]._S_is_table, subgroup_id, None, keys, join)
     C = ad.concat(
-        [dd.C for dd in dds],
+        [hd.C for hd in hds],
         join=join,
         merge="same",
         keys=keys if index_unique else None,
         index_unique=index_unique,
     )
     uns = {}
-    for dd in reversed(dds):
-        uns.update(dd.uns)
-    synced = [k for k in dds[0]._var_dims_to_sync if all(k in dd._var_dims_to_sync for dd in dds)]
-    merged = DonorData(
-        D=D, S=S, C=C, donor_id=donor_id, sample_id=sample_id, obsm=obsm, uns=uns, var_dims_to_sync=synced
+    for hd in reversed(hds):
+        uns.update(hd.uns)
+    synced = [k for k in hds[0]._var_dims_to_sync if all(k in hd._var_dims_to_sync for hd in hds)]
+    merged = HiData(
+        G=G, S=S, C=C, group_id=group_id, subgroup_id=subgroup_id, obsm=obsm, uns=uns, var_dims_to_sync=synced
     )
-    if sample_obsm:
+    if subgroup_obsm:
         positions = S.index.get_indexer(merged._S.obs_names)
-        for name, value in sample_obsm.items():
+        for name, value in subgroup_obsm.items():
             merged._S.obsm[name] = value.iloc[positions] if isinstance(value, pd.DataFrame) else value[positions]
     return merged

@@ -14,8 +14,8 @@ from anndata.abc import CSCDataset, CSRDataset
 from anndata.io import write_elem
 from mudata import MuData
 
-from donordata._core._utils import shallow_with_obs
-from donordata._core.schema import DONORDATA_ENCODING_TYPE, DONORDATA_ENCODING_VERSION
+from hidata._core._utils import shallow_with_obs
+from hidata._core.schema import HIDATA_ENCODING_TYPE, HIDATA_ENCODING_VERSION
 
 
 def _write_dense_array_zarr_chunked(path: str, X, chunks: tuple[int, int] | None) -> None:
@@ -134,7 +134,7 @@ def ehrdata_io(action: str):
         import ehrdata.io as module
     except ImportError as e:
         raise ImportError(
-            f"{action} needs ehrdata>={EHRDATA_MIN_VERSION}, install it with `pip install donordata[ehr]`."
+            f"{action} needs ehrdata>={EHRDATA_MIN_VERSION}, install it with `pip install hidata[ehr]`."
         ) from e
     if not hasattr(module, "write_elem"):
         from importlib.metadata import PackageNotFoundError, version
@@ -187,7 +187,7 @@ def _write_level(f, key: str, container, is_table: bool, is_zarr: bool, zarr_pat
     obsm, columns = pack_obsm(container.obsm) if key != "C" else (dict(container.obsm), {})
     if is_table:
         write_elem(f, key, AnnData(obs=container.obs, obsm=obsm, obsp=dict(container.obsp)))
-        f[key].attrs["donordata-table"] = True
+        f[key].attrs["hidata-table"] = True
     elif is_ehrdata(container):
         if chunks is not None:
             warnings.warn(
@@ -248,8 +248,8 @@ def _path_of(element) -> Path | None:
     return Path(root).resolve() if root is not None else None
 
 
-def write_group(dd, f, zarr_path: str | None = None, x_chunks=None) -> None:
-    """Write a DonorData into an open HDF5 file or Zarr group."""
+def write_group(hd, f, zarr_path: str | None = None, x_chunks=None) -> None:
+    """Write a HiData into an open HDF5 file or Zarr group."""
     is_zarr = isinstance(f, zarr.Group)
 
     def chunks_for(key, container):
@@ -258,21 +258,21 @@ def write_group(dd, f, zarr_path: str | None = None, x_chunks=None) -> None:
         # a shared shape is meant for the other levels
         return None if is_ehrdata(container) else x_chunks
 
-    _write_level(f, "D", dd._D, dd._D_is_table, is_zarr, zarr_path, chunks_for("D", dd._D))
-    if dd._S is not None:
-        _write_level(f, "S", dd._S, dd._S_is_table, is_zarr, zarr_path, chunks_for("S", dd._S))
-    _write_level(f, "C", dd._C, False, is_zarr, zarr_path, chunks_for("C", dd._C))
+    _write_level(f, "G", hd._G, hd._G_is_table, is_zarr, zarr_path, chunks_for("G", hd._G))
+    if hd._S is not None:
+        _write_level(f, "S", hd._S, hd._S_is_table, is_zarr, zarr_path, chunks_for("S", hd._S))
+    _write_level(f, "C", hd._C, False, is_zarr, zarr_path, chunks_for("C", hd._C))
 
-    f.attrs["encoding-type"] = DONORDATA_ENCODING_TYPE
-    f.attrs["encoding-version"] = DONORDATA_ENCODING_VERSION
-    f.attrs["donor_id"] = dd.donor_id
-    if dd.sample_id is not None:
-        f.attrs["sample_id"] = dd.sample_id
-    f.attrs["var_dims_to_sync"] = list(dd._var_dims_to_sync)
+    f.attrs["encoding-type"] = HIDATA_ENCODING_TYPE
+    f.attrs["encoding-version"] = HIDATA_ENCODING_VERSION
+    f.attrs["group_id"] = hd.group_id
+    if hd.subgroup_id is not None:
+        f.attrs["subgroup_id"] = hd.subgroup_id
+    f.attrs["var_dims_to_sync"] = list(hd._var_dims_to_sync)
 
-    if dd.uns:
+    if hd.uns:
         uns = f.require_group("uns")
-        for key, value in dd.uns.items():
+        for key, value in hd.uns.items():
             try:
                 write_elem(uns, key, value)
             except (TypeError, NotImplementedError):

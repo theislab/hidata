@@ -37,8 +37,8 @@ def _slot_lines(container, slots, highlight_keys, labels=None) -> list[Text]:
     return lines
 
 
-def side_lines(container, kind: str, highlight_keys, unit: str = "donors") -> list[Text]:
-    """Lines describing one level of a DonorData."""
+def side_lines(container, kind: str, highlight_keys, unit: str = "groups") -> list[Text]:
+    """Lines describing one level of a HiData."""
     if kind == "table":
         header = f"DataFrame with {container.n_obs:,} {unit} × {container.obs.shape[1]:,} columns"
         slots = ("obs", "obsm", "obsp")
@@ -70,22 +70,22 @@ def _kind(container, is_table: bool) -> str:
     return "mudata" if type(container).__name__ == "MuData" else "anndata"
 
 
-def render(dd, html: bool = False) -> str:
-    """Render a DonorData as a side by side panel of its levels, as text or as HTML."""
-    columns = [("D (donors)", side_lines(dd._D, _kind(dd._D, dd._D_is_table), set(dd._var_dims_to_sync)))]
-    if dd._S is not None:
-        per_donor = dd.n_samples_per_donor
-        header = f"S (samples, {per_donor.min():,}..{per_donor.max():,} per donor)"
-        columns.append((header, side_lines(dd._S, _kind(dd._S, dd._S_is_table), {dd.donor_id}, unit="samples")))
-        counts = dd.n_cells_per_sample
-        unit = "sample"
-        cell_keys = {dd.sample_id}
+def render(hd, html: bool = False) -> str:
+    """Render a HiData as a side by side panel of its levels, as text or as HTML."""
+    columns = [("G (groups)", side_lines(hd._G, _kind(hd._G, hd._G_is_table), set(hd._var_dims_to_sync)))]
+    if hd._S is not None:
+        per_group = hd.n_subgroups_per_group
+        header = f"S (subgroups, {per_group.min():,}..{per_group.max():,} per group)"
+        columns.append((header, side_lines(hd._S, _kind(hd._S, hd._S_is_table), {hd.group_id}, unit="subgroups")))
+        counts = hd.n_cells_per_subgroup
+        unit = "subgroup"
+        cell_keys = {hd.subgroup_id}
     else:
-        counts = dd.n_cells_per_donor
-        unit = "donor"
-        cell_keys = {dd.donor_id}
+        counts = hd.n_cells_per_group
+        unit = "group"
+        cell_keys = {hd.group_id}
     cell_header = f"C (cells, {counts.min():,}..{counts.max():,} per {unit})"
-    columns.append((cell_header, side_lines(dd.C, _kind(dd.C, False), cell_keys)))
+    columns.append((cell_header, side_lines(hd.C, _kind(hd.C, False), cell_keys)))
 
     n_rows = max(len(lines) for _, lines in columns)
     width = 50 if len(columns) == 2 else 40
@@ -96,9 +96,9 @@ def render(dd, html: bool = False) -> str:
     for row in zip(*(lines for _, lines in columns), strict=True):
         table.add_row(*row)
 
-    samples = "" if dd._S is None else f"n_samples={dd.n_samples:,}, "
-    title = Text(f"DonorData(n_donors={dd.n_donors:,}, {samples}n_cells={dd.n_cells:,})", style=HIGHLIGHT_COLOR)
-    keys = f"donor_id='{dd.donor_id}'" + ("" if dd._S is None else f", sample_id='{dd.sample_id}'")
+    subgroups = "" if hd._S is None else f"n_subgroups={hd.n_subgroups:,}, "
+    title = Text(f"HiData(n_groups={hd.n_groups:,}, {subgroups}n_cells={hd.n_cells:,})", style=HIGHLIGHT_COLOR)
+    keys = f"group_id='{hd.group_id}'" + ("" if hd._S is None else f", subgroup_id='{hd.subgroup_id}'")
     panel = Panel(
         table, title=title, title_align="left", subtitle=Text(keys), subtitle_align="left", box=DOUBLE, expand=False
     )

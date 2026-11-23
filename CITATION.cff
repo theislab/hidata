@@ -7,6 +7,6 @@ authors:
   given-names: "Jan"
 - family-names: "Holtkamp"
   given-names: "Eva"
-title: "DonorData"
+title: "HiData"
 version: 0.1.0
-url: "https://github.com/theislab/donordata"
+url: "https://github.com/theislab/hidata"

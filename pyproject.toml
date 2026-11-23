@@ -3,8 +3,8 @@ build-backend = "hatchling.build"
 requires = [ "hatchling" ]
 
 [project]
-name = "donordata"
-description = "Single-cell data organized across donors, samples and cells"
+name = "hidata"
+description = "Hierarchical single-cell data across groups, subgroups and cells"
 readme = "README.md"
 license = { file = "LICENSE" }
 maintainers = [
@@ -63,6 +63,7 @@ optional-dependencies.ml = [
 ]
 optional-dependencies.test = [
   "coverage",
+  "donordata==0.1.0",
   "ehrdata>=0.6",
   "pytest",
 ]
@@ -73,15 +74,15 @@ optional-dependencies.tutorials = [
   "scikit-learn",
   "seaborn",
 ]
-urls.Documentation = "https://donordata.readthedocs.io"
-urls.Homepage = "https://github.com/theislab/donordata"
-urls.Source = "https://github.com/theislab/donordata"
+urls.Documentation = "https://hidata.readthedocs.io"
+urls.Homepage = "https://github.com/theislab/hidata"
+urls.Source = "https://github.com/theislab/hidata"
 
 [tool.hatch.version]
-path = "src/donordata/__init__.py"
+path = "src/hidata/__init__.py"
 
 [tool.hatch.build.targets.wheel]
-packages = [ "src/donordata" ]
+packages = [ "src/hidata" ]
 
 [tool.hatch.envs.default]
 installer = "uv"
@@ -170,14 +171,14 @@ xfail_strict = true
 addopts = [
   "--import-mode=importlib",
 ]
-# Fail on deprecations that donordata's own code triggers, so a coming pandas or numpy change shows up in CI first.
+# Fail on deprecations that hidata's own code triggers, so a coming pandas or numpy change shows up in CI first.
 filterwarnings = [
-  "error::DeprecationWarning:donordata",
-  "error::FutureWarning:donordata",
+  "error::DeprecationWarning:hidata",
+  "error::FutureWarning:hidata",
 ]
 
 [tool.coverage.run]
-source = [ "donordata" ]
+source = [ "hidata" ]
 omit = [
   "**/test_*.py",
 ]
