@@ -2,10 +2,12 @@ import numpy as np
 import pytest
 
 torch = pytest.importorskip("torch")
+pl = pytest.importorskip("pytorch_lightning")
 
+import torch.nn.functional as F
 from torch.utils.data import DataLoader
 
-from hidata.ml import MILDataset, mil_collate_fn
+from hidata.ml import GroupMILModel, MILDataset, mil_collate_fn
 
 
 def test_variable_size_bags(hd):
@@ -98,3 +100,82 @@ def test_group_features_of_a_mudata_group_level_follow_the_groups():
     dataset = MILDataset(HiData(G=groups, C=cells, group_id="group"))
     features = {dataset[i]["group_id"]: dataset[i]["group_x"].tolist() for i in range(2)}
     assert features == {"D0": [0.0, 0.0], "D1": [1.0, 10.0]}
+
+
+def _trainer():
+    return pl.Trainer(
+        max_epochs=1,
+        accelerator="cpu",
+        logger=False,
+        enable_checkpointing=False,
+        enable_progress_bar=False,
+        enable_model_summary=False,
+    )
+
+
+@pytest.mark.parametrize("n_cells", [None, 8])
+def test_model_trains_on_bags_of_a_hidata(hd_genotypes, n_cells):
+    dataset = MILDataset(
+        hd_genotypes, group_labels_key="disease", cell_batch_key="cell_type", n_cells=n_cells, split_indices=[0, 1, 2]
+    )
+    loader = DataLoader(dataset, batch_size=2, shuffle=True, collate_fn=mil_collate_fn)
+    model = GroupMILModel(n_input_group=hd_genotypes.G.n_vars, n_input_cell=hd_genotypes.C.n_vars)
+    _trainer().fit(model, loader)
+
+
+def _batch(n_groups=2, n_cells=4, n_group_x=3, n_cell_x=5, y=None):
+    gen = torch.Generator().manual_seed(0)
+    return {
+        "group_x": torch.randn(n_groups, n_group_x, generator=gen),
+        "cell_x": [torch.randn(n_cells, n_cell_x, generator=gen) for _ in range(n_groups)],
+        "group_y": torch.zeros(n_groups, 1) if y is None else y,
+    }
+
+
+def test_forward_ignores_padded_cells():
+    torch.manual_seed(0)
+    model = GroupMILModel(n_input_group=3, n_input_cell=5).eval()
+    batch = _batch(n_groups=1, n_cells=3)
+    padded = dict(batch)
+    padded["cell_x"] = [torch.cat([batch["cell_x"][0], torch.zeros(2, 5)])]
+    padded["cell_mask"] = torch.tensor([[True, True, True, False, False]])
+    with torch.no_grad():
+        torch.testing.assert_close(model(batch), model(padded))
+
+
+def test_classification_uses_cross_entropy():
+    torch.manual_seed(0)
+    model = GroupMILModel(n_input_group=3, n_input_cell=5, n_output=3).eval()
+    batch = _batch(y=torch.tensor([[0.0], [2.0]]))  # (B, 1), as MILDataset + mil_collate_fn stack it
+    with torch.no_grad():
+        expected = F.cross_entropy(model(batch), torch.tensor([0, 2]))
+        torch.testing.assert_close(model._loss(batch), expected)
+
+
+def test_regression_loss_does_not_broadcast():
+    torch.manual_seed(0)
+    model = GroupMILModel(n_input_group=3, n_input_cell=5).eval()
+    y = torch.tensor([[1.0], [-1.0]])
+    batch = _batch(y=y)
+    with torch.no_grad():
+        expected = F.mse_loss(model(batch).squeeze(-1), y.squeeze(-1))
+        torch.testing.assert_close(model._loss(batch), expected)
+
+
+@pytest.mark.parametrize("n_output", [1, 3])
+def test_training_runs_for_regression_and_classification(n_output):
+    gen = torch.Generator().manual_seed(0)
+    items = [
+        {
+            "group_id": f"P{i}",
+            "group_x": torch.randn(3, generator=gen),
+            "group_y": torch.tensor([float(i % max(n_output, 2))]),
+            "cell_x": torch.randn(4 + i, 5, generator=gen),
+        }
+        for i in range(6)
+    ]
+    loader = DataLoader(items, batch_size=2, collate_fn=mil_collate_fn)
+    model = GroupMILModel(n_input_group=3, n_input_cell=5, n_output=n_output)
+    trainer = _trainer()
+    trainer.fit(model, loader, loader)
+    assert torch.isfinite(trainer.callback_metrics["train_loss"])

@@ -9,10 +9,7 @@
 :maxdepth: 1
 :caption: Getting started
 
-tutorials/getting_started
-tutorials/patient_cohort
-tutorials/perturbation_screen
-tutorials/ehr_cohort
+tutorials/index
 ```
 
 ```{toctree}

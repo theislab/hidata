@@ -59,6 +59,7 @@ optional-dependencies.ehr = [
   "ehrdata>=0.6",
 ]
 optional-dependencies.ml = [
+  "pytorch-lightning>=2.5",
   "torch>=2.3",
 ]
 optional-dependencies.test = [

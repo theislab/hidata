@@ -23,7 +23,7 @@ pip install git+https://github.com/theislab/hidata
 
 ## Optional dependencies
 
-The PyTorch dataset in {mod}`hidata.ml` needs the `ml` extra:
+The PyTorch dataset and model in {mod}`hidata.ml` need the `ml` extra:
 
 ```console
 pip install "hidata[ml]"

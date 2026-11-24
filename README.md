@@ -105,8 +105,9 @@ See the [installation guide](https://hidata.readthedocs.io/en/latest/install.htm
 ## Tutorials
 
 The tutorials cover a [first object](https://hidata.readthedocs.io/en/latest/tutorials/getting_started.html), a
-[patient cohort](https://hidata.readthedocs.io/en/latest/tutorials/patient_cohort.html), a [CRISPR screen](https://hidata.readthedocs.io/en/latest/tutorials/perturbation_screen.html)
-and [electronic health records](https://hidata.readthedocs.io/en/latest/tutorials/ehr_cohort.html).
+[patient cohort](https://hidata.readthedocs.io/en/latest/tutorials/patient_cohort.html), a [CRISPR screen](https://hidata.readthedocs.io/en/latest/tutorials/perturbation_screen.html),
+[electronic health records](https://hidata.readthedocs.io/en/latest/tutorials/ehr_cohort.html) and
+[multiple instance learning](https://hidata.readthedocs.io/en/latest/tutorials/mil_model.html) on the cells of each patient.
 
 ## Packages using HiData
 

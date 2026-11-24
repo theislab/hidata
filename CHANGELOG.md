@@ -47,6 +47,9 @@ time point, a guide or a dose. The behaviour is that of donordata 0.1.0; the nam
 
 - Reading of files and stores written by donordata 0.1.0, and of the older files of cellink that donordata reads.
   Writing such an object again stores it in the HiData format.
+- `ml.GroupMILModel`, a PyTorch Lightning model that predicts the label of a group from its features and the bag of its
+  cells, as yielded by `MILDataset`. It was `DonorMILModel` in cellink. The `ml` extra installs PyTorch Lightning.
+- The tutorial on multiple instance learning with `MILDataset` and `GroupMILModel`.
 
 ## donordata releases
 

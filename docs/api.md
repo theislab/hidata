@@ -90,7 +90,7 @@ Checking an object against the {doc}`specification <io/spec>`.
 
 ## Machine learning
 
-Requires PyTorch, see {doc}`install`.
+Requires PyTorch and PyTorch Lightning, see {doc}`install`.
 
 ```{eval-rst}
 .. autosummary::
@@ -98,4 +98,5 @@ Requires PyTorch, see {doc}`install`.
 
    ml.MILDataset
    ml.mil_collate_fn
+   ml.GroupMILModel
 ```

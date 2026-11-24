@@ -24,6 +24,7 @@ jobs:
           - "docs/tutorials/ehr_cohort.ipynb"
           - "docs/tutorials/patient_cohort.ipynb"
           - "docs/tutorials/perturbation_screen.ipynb"
+          - "docs/tutorials/mil_model.ipynb"
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
