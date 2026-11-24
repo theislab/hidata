@@ -4,7 +4,7 @@ import pandas as pd
 import pytest
 import scipy.sparse as sp
 
-N_DONORS = 8
+N_GROUPS = 8
 N_GENES = 12
 N_SNPS = 5
 
@@ -14,26 +14,26 @@ def patients():
     rng = np.random.default_rng(1)
     return pd.DataFrame(
         {
-            "age": rng.integers(20, 80, N_DONORS),
-            "sex": pd.Categorical(np.tile(["F", "M"], N_DONORS // 2)),
-            "disease": pd.Categorical(np.repeat(["healthy", "covid"], N_DONORS // 2)),
-            "site": pd.Categorical(np.tile(["A", "A", "B", "B"], N_DONORS // 4)),
-            "bmi": rng.normal(25, 3, N_DONORS),
+            "age": rng.integers(20, 80, N_GROUPS),
+            "sex": pd.Categorical(np.tile(["F", "M"], N_GROUPS // 2)),
+            "disease": pd.Categorical(np.repeat(["healthy", "covid"], N_GROUPS // 2)),
+            "site": pd.Categorical(np.tile(["A", "A", "B", "B"], N_GROUPS // 4)),
+            "bmi": rng.normal(25, 3, N_GROUPS),
         },
-        index=pd.Index([f"P{i}" for i in range(N_DONORS)], name="patient"),
+        index=pd.Index([f"P{i}" for i in range(N_GROUPS)], name="patient"),
     )
 
 
 @pytest.fixture
 def cells(patients):
     rng = np.random.default_rng(0)
-    sizes = rng.integers(10, 30, N_DONORS)
-    donors = np.repeat(patients.index.to_numpy(), sizes)
-    donors = donors[rng.permutation(donors.size)]
-    n_cells = donors.size
+    sizes = rng.integers(10, 30, N_GROUPS)
+    groups = np.repeat(patients.index.to_numpy(), sizes)
+    groups = groups[rng.permutation(groups.size)]
+    n_cells = groups.size
     obs = pd.DataFrame(
         {
-            "patient": donors,
+            "patient": groups,
             "cell_type": pd.Categorical(rng.choice(["T", "B", "NK"], n_cells), categories=["B", "NK", "T", "DC"]),
             "n_counts": rng.integers(500, 5000, n_cells),
         },
@@ -57,30 +57,30 @@ def cells(patients):
 def genotypes(patients):
     rng = np.random.default_rng(2)
     return ad.AnnData(
-        X=rng.binomial(2, 0.3, size=(N_DONORS, N_SNPS)).astype(np.float32),
+        X=rng.binomial(2, 0.3, size=(N_GROUPS, N_SNPS)).astype(np.float32),
         obs=pd.DataFrame(index=pd.Index(patients.index, name="patient")),
         var=pd.DataFrame(
-            {"chrom": "1", "pos": np.arange(1, N_SNPS + 1), "a0": "A", "a1": "D"},
+            {"chrom": "1", "pos": np.arange(1, N_SNPS + 1), "a0": "A", "a1": "G"},
             index=[f"snp{i}" for i in range(N_SNPS)],
         ),
     )
 
 
 @pytest.fixture
-def dd(cells):
-    from donordata import DonorData
+def hd(cells):
+    from hidata import HiData
 
-    return DonorData.from_anndata(cells, donor_id="patient")
+    return HiData.from_anndata(cells, group_id="patient")
 
 
 @pytest.fixture
-def dd_genotypes(cells, genotypes, patients):
-    from donordata import DonorData
+def hd_genotypes(cells, genotypes, patients):
+    from hidata import HiData
 
     cells = cells.copy()
     cells.obs = cells.obs.drop(columns=patients.columns)
     genotypes.obs = genotypes.obs.join(patients)
-    return DonorData(D=genotypes, C=cells, donor_id="patient")
+    return HiData(G=genotypes, C=cells, group_id="patient")
 
 
 @pytest.fixture
@@ -89,17 +89,17 @@ def visits(cells, patients):
     cells = cells.copy()
     n_visits = {p: 1 + (i % 3) for i, p in enumerate(patients.index)}
     visit = np.array([rng.integers(0, n_visits[p]) for p in cells.obs["patient"]])
-    cells.obs["sample"] = [f"{p}_v{v}" for p, v in zip(cells.obs["patient"], visit, strict=True)]
+    cells.obs["subgroup"] = [f"{p}_v{v}" for p, v in zip(cells.obs["patient"], visit, strict=True)]
     cells.obs["day"] = visit * 7
     cells.obs["tissue"] = np.where(visit % 2 == 0, "blood", "marrow")
     return cells
 
 
 @pytest.fixture
-def dd3(visits):
-    from donordata import DonorData
+def hd3(visits):
+    from hidata import HiData
 
-    return DonorData.from_anndata(visits, donor_id="patient", sample_id="sample")
+    return HiData.from_anndata(visits, group_id="patient", subgroup_id="subgroup")
 
 
 @pytest.fixture

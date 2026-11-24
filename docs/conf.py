@@ -1,14 +1,14 @@
 from datetime import datetime
 from importlib.metadata import metadata
 
-info = metadata("donordata")
+info = metadata("hidata")
 
-project = "DonorData"
+project = "HiData"
 author = "Lucas Arnoldt, Jan Engelmann, Eva Holtkamp"
 copyright = f"{datetime.now():%Y}, Theislab."
 version = info["Version"]
 release = info["Version"]
-repository_url = "https://github.com/theislab/donordata"
+repository_url = "https://github.com/theislab/hidata"
 
 templates_path = ["_templates"]
 html_static_path = ["_static"]
@@ -29,7 +29,7 @@ extensions = [
 ]
 
 autosummary_generate = True
-autodoc_mock_imports = ["torch"]
+autodoc_mock_imports = ["pytorch_lightning", "torch"]
 autodoc_member_order = "groupwise"
 default_role = "literal"
 napoleon_google_docstring = False
@@ -61,13 +61,13 @@ exclude_patterns = ["_build", "Thumbs.db", ".DS_Store", "**.ipynb_checkpoints", 
 
 html_theme = "sphinx_book_theme"
 html_title = project
-html_logo = "_static/img/donordata_logo.svg"
-html_favicon = "_static/img/donordata_logo_mark.svg"
-ogp_social_cards = {"image": "_static/img/donordata_logo.png"}
+html_logo = "_static/img/hidata_logo.svg"
+html_favicon = "_static/img/hidata_logo_mark.svg"
+ogp_social_cards = {"image": "_static/img/hidata_logo.png"}
 html_theme_options = {
     "logo": {
-        "image_light": "_static/img/donordata_logo.svg",
-        "image_dark": "_static/img/donordata_logo_dark.svg",
+        "image_light": "_static/img/hidata_logo.svg",
+        "image_dark": "_static/img/hidata_logo_dark.svg",
     },
     "repository_url": repository_url,
     "use_repository_button": True,

@@ -7,7 +7,7 @@ import re
 import tomllib
 from pathlib import Path
 
-SKIP_EXTRAS = {"dev", "doc", "test"}  # tools for development, not dependencies of donordata
+SKIP_EXTRAS = {"dev", "doc", "test"}  # tools for development, not dependencies of hidata
 # name, optional [extras], ">=" lower bound, optional further specifiers, optional environment marker
 LOWER_BOUND = re.compile(r"^\s*([\w.-]+)\s*(?:\[[^\]]*\])?\s*>=\s*([^,;\s]+)[^;]*(;.*)?$")
 

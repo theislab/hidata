@@ -10,11 +10,11 @@ from anndata.utils import asarray
 from mudata import MuData
 from torch.utils.data import Dataset
 
-from donordata._core._utils import modality
-from donordata._core.donordata import DonorData
-from donordata._core.fields import CAnn, DAnn
+from hidata._core._utils import modality
+from hidata._core.fields import CAnn, GAnn
+from hidata._core.hidata import HiData
 
-DONOR_FIELDS = ("donor_x", "donor_y", "donor_batch", "donor_cat_covs", "donor_cont_covs", "donor_indices")
+GROUP_FIELDS = ("group_x", "group_y", "group_batch", "group_cat_covs", "group_cont_covs", "group_indices")
 CELL_FIELDS = ("cell_x", "cell_y", "cell_batch", "cell_cat_covs", "cell_cont_covs", "cell_indices", "cell_mask")
 
 
@@ -70,11 +70,11 @@ def _resolve(adata: AnnData, key: str | None):
 
 
 class MILDataset(Dataset):
-    """Torch dataset that yields one bag of cells per donor of a :class:`~donordata.DonorData`.
+    """Torch dataset that yields one bag of cells per group of a :class:`~hidata.HiData`.
 
-    Every item holds the features and labels of a donor together with the features of all of its
+    Every item holds the features and labels of a group together with the features of all of its
     cells, the setting of multiple instance learning where one label describes a whole bag. Cells of
-    a donor are contiguous in ``dd.C``, so bags are read as slices. With ``n_cells`` every bag is
+    a group are contiguous in ``hd.C``, so bags are read as slices. With ``n_cells`` every bag is
     subsampled or zero padded to a fixed size and ``cell_mask`` marks the real cells, which lets
     :func:`mil_collate_fn` stack bags into dense tensors.
 
@@ -84,21 +84,21 @@ class MILDataset(Dataset):
 
     Parameters
     ----------
-    dd
-        Donor and cell data.
-    donor_layer
-        Donor features. ``None`` uses ``D.X`` when ``D`` has a matrix. Other keys are looked up in
-        ``D.layers`` and then in ``dd.obsm``.
-    donor_labels_key
-        Donor table column with the bag label.
-    donor_batch_key
-        Donor table column with the donor batch.
-    donor_cat_covs_key
-        Donor table column with a categorical donor covariate.
-    donor_cont_covs_key
-        Donor table column or :attr:`~donordata.DonorData.obsm` key with continuous donor covariates.
-    donor_indices_key
-        Donor table column with donor indices.
+    hd
+        Group and cell data.
+    group_layer
+        Group features. ``None`` uses ``G.X`` when ``G`` has a matrix. Other keys are looked up in
+        ``G.layers`` and then in ``hd.obsm``.
+    group_labels_key
+        Group table column with the bag label.
+    group_batch_key
+        Group table column with the group batch.
+    group_cat_covs_key
+        Group table column with a categorical group covariate.
+    group_cont_covs_key
+        Group table column or :attr:`~hidata.HiData.obsm` key with continuous group covariates.
+    group_indices_key
+        Group table column with group indices.
     cell_layer
         Cell features. ``None`` uses ``C.X``. Other keys are looked up in ``C.layers`` and then in
         ``C.obsm``.
@@ -112,71 +112,71 @@ class MILDataset(Dataset):
         Column of ``C.obs`` or key of ``C.obsm`` with continuous cell covariates.
     cell_indices_key
         Column of ``C.obs`` with cell indices.
-    split_donors
-        Donor identifiers to include.
+    split_groups
+        Group identifiers to include.
     split_indices
-        Positions of the donors to include, as an alternative to ``split_donors``.
+        Positions of the groups to include, as an alternative to ``split_groups``.
     n_cells
         Fixed bag size. Larger bags are subsampled without replacement, smaller ones are zero padded.
     random_state
         Seed of the generator used for subsampling.
     level
-        ``"donor"`` for one bag per donor, or ``"sample"`` for one bag per sample. Unit fields are
-        then read from the sample table, which also sees donor columns.
+        ``"group"`` for one bag per group, or ``"subgroup"`` for one bag per subgroup. Unit fields are
+        then read from the subgroup table, which also sees group columns.
     """
 
     def __init__(
         self,
-        dd: DonorData,
-        donor_layer: str | None = None,
-        donor_labels_key: str | None = None,
-        donor_batch_key: str | None = None,
-        donor_cat_covs_key: str | None = None,
-        donor_cont_covs_key: str | None = None,
-        donor_indices_key: str | None = None,
+        hd: HiData,
+        group_layer: str | None = None,
+        group_labels_key: str | None = None,
+        group_batch_key: str | None = None,
+        group_cat_covs_key: str | None = None,
+        group_cont_covs_key: str | None = None,
+        group_indices_key: str | None = None,
         cell_layer: str | None = None,
         cell_labels_key: str | None = None,
         cell_batch_key: str | None = None,
         cell_cat_covs_key: str | None = None,
         cell_cont_covs_key: str | None = None,
         cell_indices_key: str | None = None,
-        split_donors: list | None = None,
+        split_groups: list | None = None,
         split_indices: list[int] | None = None,
         n_cells: int | None = None,
         random_state: int | None = None,
-        level: str = "donor",
+        level: str = "group",
     ):
-        if split_donors is not None and split_indices is not None:
-            raise ValueError("Both split_donors and split_indices cannot be provided at the same time.")
-        dd._check_level(level)
+        if split_groups is not None and split_indices is not None:
+            raise ValueError("Both split_groups and split_indices cannot be provided at the same time.")
+        hd._check_level(level)
 
-        self.dd = dd
+        self.hd = hd
         self.level = level
         self.n_cells = n_cells
-        container = dd.levels[level]
+        container = hd.levels[level]
         names = container.obs_names
-        self.donor_names = names.to_numpy()
-        self._offsets = dd._offsets(level)
+        self.group_names = names.to_numpy()
+        self._offsets = hd._offsets(level)
         self._rng = np.random.default_rng(random_state)
         self.encodings: dict[str, list] = {}
 
-        if split_donors is not None:
-            self._positions = names.get_indexer(pd.Index(split_donors).astype(str))
+        if split_groups is not None:
+            self._positions = names.get_indexer(pd.Index(split_groups).astype(str))
             if (self._positions < 0).any():
-                missing = np.asarray(split_donors)[self._positions < 0].tolist()
-                raise KeyError(f"Units {missing[:8]} are not in the DonorData.")
+                missing = np.asarray(split_groups)[self._positions < 0].tolist()
+                raise KeyError(f"Units {missing[:8]} are not in the HiData.")
         elif split_indices is not None:
             self._positions = np.asarray(split_indices, dtype=np.int64)
         else:
             self._positions = np.arange(len(names))
-        self.selected_ids = self.donor_names[self._positions]
+        self.selected_ids = self.group_names[self._positions]
 
-        donor_keys = {
-            "donor_y": (donor_labels_key, DAnn.DONOR_LABELS_KEY),
-            "donor_batch": (donor_batch_key, DAnn.DONOR_BATCH_KEY),
-            "donor_cat_covs": (donor_cat_covs_key, DAnn.DONOR_CAT_COVS_KEY),
-            "donor_cont_covs": (donor_cont_covs_key, DAnn.DONOR_CONT_COVS_KEY),
-            "donor_indices": (donor_indices_key, DAnn.DONOR_INDICES_KEY),
+        group_keys = {
+            "group_y": (group_labels_key, GAnn.GROUP_LABELS_KEY),
+            "group_batch": (group_batch_key, GAnn.GROUP_BATCH_KEY),
+            "group_cat_covs": (group_cat_covs_key, GAnn.GROUP_CAT_COVS_KEY),
+            "group_cont_covs": (group_cont_covs_key, GAnn.GROUP_CONT_COVS_KEY),
+            "group_indices": (group_indices_key, GAnn.GROUP_INDICES_KEY),
         }
         cell_keys = {
             "cell_y": (cell_labels_key, CAnn.CELL_LABELS_KEY),
@@ -185,9 +185,9 @@ class MILDataset(Dataset):
             "cell_cont_covs": (cell_cont_covs_key, CAnn.CELL_CONT_COVS_KEY),
             "cell_indices": (cell_indices_key, CAnn.CELL_INDICES_KEY),
         }
-        self._donor_fields = self._collect(donor_keys, dd._table(level), container.obsm, container)
-        self._cell_fields = self._collect(cell_keys, dd.C.obs, dd.C.obsm, dd.C)
-        self._donor_matrix = self._donor_features(donor_layer, container)
+        self._group_fields = self._collect(group_keys, hd._table(level), container.obsm, container)
+        self._cell_fields = self._collect(cell_keys, hd.C.obs, hd.C.obsm, hd.C)
+        self._group_matrix = self._group_features(group_layer, container)
         self._cell_matrices = self._cell_features(cell_layer)
 
     def _collect(self, keys: dict, table: pd.DataFrame, obsm, container) -> dict[str, np.ndarray]:
@@ -207,12 +207,12 @@ class MILDataset(Dataset):
                 self.encodings[key] = classes
         return fields
 
-    def _donor_features(self, donor_layer: str | None, container):
-        if donor_layer is not None and donor_layer in container.obsm:
-            return _rows(container.obsm[donor_layer])
+    def _group_features(self, group_layer: str | None, container):
+        if group_layer is not None and group_layer in container.obsm:
+            return _rows(container.obsm[group_layer])
         if container.n_vars == 0:
-            if donor_layer is not None:
-                raise KeyError(f"'{donor_layer}' not found in the obsm of the {self.level} level.")
+            if group_layer is not None:
+                raise KeyError(f"'{group_layer}' not found in the obsm of the {self.level} level.")
             return None
         if isinstance(container, MuData):
             parts = [modality(container, name) for name in container.mod]
@@ -221,21 +221,21 @@ class MILDataset(Dataset):
             mods = [adata for adata, _ in parts]
         else:
             mods = [container]
-        matrices = [m for m in (_resolve(mod, donor_layer) for mod in mods) if m is not None]
+        matrices = [m for m in (_resolve(mod, group_layer) for mod in mods) if m is not None]
         if not matrices:
-            if donor_layer is not None:
-                raise KeyError(f"'{donor_layer}' not found in D.")
+            if group_layer is not None:
+                raise KeyError(f"'{group_layer}' not found in G.")
             return None
         return matrices[0] if len(matrices) == 1 else np.concatenate([asarray(m) for m in matrices], axis=1)
 
     def _cell_features(self, cell_layer: str | None) -> list:
-        C = self.dd.C
+        C = self.hd.C
         if isinstance(C, MuData):
             if cell_layer is not None and cell_layer in C.obsm:
                 return [_rows(C.obsm[cell_layer])]
             parts = [modality(C, name) for name in C.mod]
             if any(rows is not None for _, rows in parts):
-                raise ValueError("Bags need every modality to cover every cell, select cells with dd.complete_cases().")
+                raise ValueError("Bags need every modality to cover every cell, select cells with hd.complete_cases().")
             matrices = [_resolve(adata, cell_layer) for adata, _ in parts]
             matrices = [m for m in matrices if m is not None]
         else:
@@ -247,7 +247,7 @@ class MILDataset(Dataset):
     def __len__(self) -> int:
         return len(self._positions)
 
-    def balanced_weights(self, field: str = "donor_y") -> torch.Tensor:
+    def balanced_weights(self, field: str = "group_y") -> torch.Tensor:
         """Weights for a ``WeightedRandomSampler`` that draws every class of ``field`` equally often.
 
         Parameters
@@ -260,9 +260,9 @@ class MILDataset(Dataset):
         torch.Tensor
             One weight per item of the dataset.
         """
-        if field not in self._donor_fields:
+        if field not in self._group_fields:
             raise KeyError(f"Field '{field}' is not available.")
-        labels = self._donor_fields[field][self._positions]
+        labels = self._group_fields[field][self._positions]
         classes, counts = np.unique(labels, return_counts=True)
         weights = 1.0 / counts[np.searchsorted(classes, labels)]
         return torch.tensor(weights, dtype=torch.double)
@@ -290,28 +290,28 @@ class MILDataset(Dataset):
         rows, mask = self._bag_rows(position)
         selector = slice(rows[0], rows[-1] + 1) if rows[-1] - rows[0] + 1 == rows.size else rows
 
-        sample: dict[str, Any] = {"donor_id": self.donor_names[position], "donor_x": None}
-        if self._donor_matrix is not None:
-            donor_x = np.ravel(get_array(self._donor_matrix[position : position + 1]))
-            sample["donor_x"] = torch.tensor(donor_x, dtype=torch.float32)
-        for name in DONOR_FIELDS[1:]:
-            values = self._donor_fields.get(name)
-            sample[name] = None if values is None else torch.tensor(values[position], dtype=torch.float32)
+        item: dict[str, Any] = {"group_id": self.group_names[position], "group_x": None}
+        if self._group_matrix is not None:
+            group_x = np.ravel(get_array(self._group_matrix[position : position + 1]))
+            item["group_x"] = torch.tensor(group_x, dtype=torch.float32)
+        for name in GROUP_FIELDS[1:]:
+            values = self._group_fields.get(name)
+            item[name] = None if values is None else torch.tensor(values[position], dtype=torch.float32)
 
         cell_x = np.concatenate([get_array(m[selector]) for m in self._cell_matrices], axis=1)
-        sample["cell_x"] = torch.tensor(self._pad(np.asarray(cell_x, dtype=np.float32), mask))
+        item["cell_x"] = torch.tensor(self._pad(np.asarray(cell_x, dtype=np.float32), mask))
         for name in CELL_FIELDS[1:-1]:
             values = self._cell_fields.get(name)
-            sample[name] = None if values is None else torch.tensor(self._pad(values[rows], mask))
-        sample["cell_mask"] = None if mask is None else torch.from_numpy(mask)
-        return sample
+            item[name] = None if values is None else torch.tensor(self._pad(values[rows], mask))
+        item["cell_mask"] = None if mask is None else torch.from_numpy(mask)
+        return item
 
 
 def mil_collate_fn(batch: list[dict]) -> dict:
     """Collate items of :class:`MILDataset` into a batch.
 
-    Donor fields are stacked into tensors with a leading batch dimension. Cell fields are stacked
-    as well when bags have a fixed size, and kept as lists of per donor tensors otherwise, which
+    Group fields are stacked into tensors with a leading batch dimension. Cell fields are stacked
+    as well when bags have a fixed size, and kept as lists of per group tensors otherwise, which
     preserves bags of different lengths.
 
     Parameters
@@ -322,14 +322,14 @@ def mil_collate_fn(batch: list[dict]) -> dict:
     Returns
     -------
     dict
-        Batched fields, with ``"donor_id"`` as a list. Fields that are missing in the items are left
+        Batched fields, with ``"group_id"`` as a list. Fields that are missing in the items are left
         out.
     """
     fixed = batch[0].get("cell_mask") is not None
-    sample: dict[str, Any] = {"donor_id": [item["donor_id"] for item in batch]}
-    for key in DONOR_FIELDS + CELL_FIELDS:
+    collated: dict[str, Any] = {"group_id": [item["group_id"] for item in batch]}
+    for key in GROUP_FIELDS + CELL_FIELDS:
         values = [item[key] for item in batch if item.get(key) is not None]
         if not values:
             continue
-        sample[key] = torch.stack(values) if key in DONOR_FIELDS or fixed else values
-    return sample
+        collated[key] = torch.stack(values) if key in GROUP_FIELDS or fixed else values
+    return collated

@@ -67,7 +67,7 @@ MISSING_LABELS = {"", "na", "n/a", "<na>", "nan", "nat", "none", "null"}
 def is_missing_label(values: pd.Series) -> np.ndarray:
     """Whether each identifier is missing, or a string that stands for a missing value such as ``"nan"``.
 
-    The single definition of a missing identifier: everything that turns a column into donor or sample
+    The single definition of a missing identifier: everything that turns a column into group or subgroup
     identifiers goes through :func:`string_labels`, which uses it.
     """
     if isinstance(values.dtype, pd.CategoricalDtype):
@@ -172,13 +172,13 @@ def constant_columns(obs: pd.DataFrame, codes: np.ndarray, first: np.ndarray, ex
 def align_series(values: pd.Series, index: pd.Index, what: str, subject: str) -> pd.Series:
     """Reorder a Series to ``index`` by label, since the levels may be reordered on construction.
 
-    The single rule for every Series that holds one value per donor, sample or cell: it is matched by name.
+    The single rule for every Series that holds one value per group, subgroup or cell: it is matched by name.
     Labels beyond ``index`` are ignored. ``subject`` names the Series in the error messages.
     """
     advice = (
         "Build it from the current object. Passing its ``.values`` selects by position instead: "
         "do that only if they are in the order of this object, which can differ from the order of your "
-        "input because DonorData reorders samples and cells."
+        "input because HiData reorders subgroups and cells."
     )
     if isinstance(values.index, pd.RangeIndex):
         # Also when the names are "0", "1", ...: the values may be in the order of the input or of this object.
@@ -223,7 +223,7 @@ def resolve_mask(key, frame: pd.DataFrame, what: str) -> np.ndarray:
         result = key(frame)
     else:
         result = key
-    by_position = "To select by position use ``dd[...]`` or ``dd.sel(...)``."
+    by_position = "To select by position use ``hd[...]`` or ``hd.sel(...)``."
     if isinstance(result, slice):
         raise TypeError(f"Cannot select {what} with a slice. {by_position}")
     if pd.api.types.infer_dtype(result if np.ndim(result) else [result], skipna=False) in ("integer", "mixed-integer"):

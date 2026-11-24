@@ -1,7 +1,7 @@
 # API
 
 ```{eval-rst}
-.. module:: donordata
+.. module:: hidata
 ```
 
 The central class:
@@ -10,14 +10,14 @@ The central class:
 .. autosummary::
    :toctree: generated/
 
-   DonorData
+   HiData
 ```
 
 (combining-api)=
 
 ## Combining
 
-Combining {class}`DonorData` objects.
+Combining {class}`HiData` objects.
 
 ```{eval-rst}
 .. autosummary::
@@ -30,30 +30,30 @@ Combining {class}`DonorData` objects.
 
 ## Reading
 
-Reading DonorData's native formats `.dd.h5` and `.dd.zarr`.
-(These functions are also exported as {func}`read_dd`, {func}`read_h5_dd` and {func}`read_zarr_dd`.)
+Reading HiData's native formats `.hd.h5` and `.hd.zarr`, and files and stores written by donordata.
+(These functions are also exported as {func}`read_hd`, {func}`read_h5_hd` and {func}`read_zarr_hd`.)
 
 ```{eval-rst}
 .. autosummary::
    :toctree: generated/
 
-   io.read_dd
-   io.read_h5_dd
-   io.read_zarr_dd
+   io.read_hd
+   io.read_h5_hd
+   io.read_zarr_hd
 ```
 
 (writing-api)=
 
 ## Writing
 
-Writing a complete {class}`DonorData` object to disk.
+Writing a complete {class}`HiData` object to disk.
 
 ```{eval-rst}
 .. autosummary::
 
-   DonorData.write_dd
-   DonorData.write_h5_dd
-   DonorData.write_zarr_dd
+   HiData.write_hd
+   HiData.write_h5_hd
+   HiData.write_zarr_hd
 ```
 
 ## Validation
@@ -65,7 +65,7 @@ Checking an object against the {doc}`specification <io/spec>`.
    :toctree: generated/
 
    validate
-   DonorDataSchemaError
+   HiDataSchemaError
 ```
 
 ## Extensions
@@ -74,7 +74,7 @@ Checking an object against the {doc}`specification <io/spec>`.
 .. autosummary::
    :toctree: generated/
 
-   register_donordata_namespace
+   register_hidata_namespace
 ```
 
 ## Preprocessing
@@ -84,13 +84,13 @@ Checking an object against the {doc}`specification <io/spec>`.
    :toctree: generated/
 
    pp.cell_level_obs_filter
-   pp.donor_level_obs_filter
-   pp.donor_level_var_filter
+   pp.group_level_obs_filter
+   pp.group_level_var_filter
 ```
 
 ## Machine learning
 
-Requires PyTorch, see {doc}`install`.
+Requires PyTorch and PyTorch Lightning, see {doc}`install`.
 
 ```{eval-rst}
 .. autosummary::
@@ -98,4 +98,5 @@ Requires PyTorch, see {doc}`install`.
 
    ml.MILDataset
    ml.mil_collate_fn
+   ml.GroupMILModel
 ```

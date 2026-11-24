@@ -17,10 +17,17 @@ from anndata.experimental import read_dispatched
 from anndata.io import read_elem, sparse_dataset
 from mudata import MuData
 
-from donordata._core._utils import build_mudata
-from donordata._core._write import ehrdata_io, is_ehrdata_group, slots_group
-from donordata._core.donordata import DonorData, _copy_matrices
-from donordata._core.schema import DONORDATA_ENCODING_TYPE, DONORDATA_ENCODING_VERSION, READABLE_ENCODING_VERSIONS
+from hidata._core._utils import build_mudata
+from hidata._core._write import ehrdata_io, is_ehrdata_group, slots_group
+from hidata._core.fields import GAnn
+from hidata._core.hidata import HiData, _copy_matrices
+from hidata._core.schema import (
+    DONORDATA_ENCODING_TYPE,
+    DONORDATA_ENCODING_VERSIONS,
+    HIDATA_ENCODING_TYPE,
+    HIDATA_ENCODING_VERSION,
+    READABLE_ENCODING_VERSIONS,
+)
 
 
 def _is_matrix_elem(elem_name: str) -> bool:
@@ -103,10 +110,10 @@ def _unpack_obsm(group, container) -> None:
         container.obsm[entry] = pd.DataFrame(values, index=container.obs_names, columns=columns)
 
 
-def _read_level(f, key: str, lazy: bool, var_columns=None):
-    """Return the object to hand to DonorData for a level, and the AnnData holding a table level."""
+def _read_level(f, key: str, lazy: bool, var_columns=None, table_attr: str = "hidata-table"):
+    """Return the object to hand to HiData for a level, and the AnnData holding a table level."""
     group = f[key]
-    if group.attrs.get("donordata-table", False):
+    if group.attrs.get(table_attr, False):
         shell = read_elem(group)
         _unpack_obsm(group, shell)
         return shell.obs, shell
@@ -121,104 +128,120 @@ def _read_level(f, key: str, lazy: bool, var_columns=None):
     return container, None
 
 
-def _read_dd(f, lazy: bool = False, var_columns=None) -> DonorData:
+def _layout(f) -> tuple[str, str, str, str, str]:
+    """Level key, table attribute, identifier attributes and default ``group_id`` of a HiData or donordata store."""
     encoding_type = f.attrs.get("encoding-type")
+    encoding_version = f.attrs.get("encoding-version")
+    if encoding_type == HIDATA_ENCODING_TYPE:
+        if encoding_version is not None and encoding_version not in READABLE_ENCODING_VERSIONS:
+            warnings.warn(
+                f"HiData file has encoding-version={encoding_version!r}, this version of HiData writes "
+                f"{HIDATA_ENCODING_VERSION!r}. Reading anyway, but the result may be incomplete.",
+                stacklevel=4,
+            )
+        return "G", "hidata-table", "group_id", "subgroup_id", GAnn.group
     if encoding_type is not None and encoding_type != DONORDATA_ENCODING_TYPE:
         raise ValueError(
-            f"Expected encoding-type={DONORDATA_ENCODING_TYPE!r} at the top level of a DonorData file, "
-            f"found {encoding_type!r}. This file was not written by DonorData."
+            f"Expected encoding-type={HIDATA_ENCODING_TYPE!r} at the top level of a HiData file, "
+            f"found {encoding_type!r}. This file was not written by HiData."
         )
-    encoding_version = f.attrs.get("encoding-version")
-    if encoding_version is not None and encoding_version not in READABLE_ENCODING_VERSIONS:
+    if encoding_version is not None and encoding_version not in DONORDATA_ENCODING_VERSIONS:
         warnings.warn(
-            f"DonorData file has encoding-version={encoding_version!r}, this version of DonorData writes "
-            f"{DONORDATA_ENCODING_VERSION!r}. Reading anyway, but the result may be incomplete.",
-            stacklevel=3,
+            f"donordata file has encoding-version={encoding_version!r}, HiData reads donordata files of the "
+            f"versions {', '.join(DONORDATA_ENCODING_VERSIONS)}. Reading anyway, but the result may be incomplete.",
+            stacklevel=4,
         )
+    if "D" in f:
+        return "D", "donordata-table", "donor_id", "sample_id", "donor"
+    warnings.warn(
+        f"This file has the layout of donordata files of version {encoding_version or '0.1.0'}, written by "
+        "cellink. It is read into a HiData, and writing the object again stores it in the current format.",
+        UserWarning,
+        stacklevel=4,
+    )
+    return "G", "donordata-table", "donor_id", "sample_id", "donor"
 
-    if "D" not in f and "G" in f:
-        warnings.warn(
-            f"This file stores the donor level in G, as DonorData files of version {encoding_version or '0.1.0'} "
-            "did. It is read into D, and writing the object again stores it in the current format.",
-            UserWarning,
-            stacklevel=3,
-        )
-    D, D_shell = _read_level(f, "D" if "D" in f else "G", lazy, var_columns)
-    S, S_shell = _read_level(f, "S", lazy) if "S" in f else (None, None)
+
+def _read_hd(f, lazy: bool = False, var_columns=None) -> HiData:
+    group_key, table_attr, group_attr, subgroup_attr, default_group_id = _layout(f)
+    G, G_shell = _read_level(f, group_key, lazy, var_columns, table_attr)
+    S, S_shell = _read_level(f, "S", lazy, table_attr=table_attr) if "S" in f else (None, None)
     C = _read_side(f["C"], lazy)
-    if D_shell is not None:
-        obsm, obsp = dict(D_shell.obsm), dict(D_shell.obsp)
+    if G_shell is not None:
+        obsm, obsp = dict(G_shell.obsm), dict(G_shell.obsp)
     else:
         obsm = read_elem(f["obsm"]) if "obsm" in f else None
         obsp = read_elem(f["obsp"]) if "obsp" in f else None
     uns = {key: read_elem(f["uns"][key]) for key in f["uns"].keys()} if "uns" in f else {}
-    sample_id = f.attrs.get("sample_id")
+    subgroup_id = f.attrs.get(subgroup_attr)
 
-    dd = DonorData(
-        D=D,
+    hd = HiData(
+        G=G,
         S=S,
         C=C,
-        donor_id=f.attrs.get("donor_id", "donor"),
-        sample_id=None if sample_id is None else str(sample_id),
+        group_id=f.attrs.get(group_attr, default_group_id),
+        subgroup_id=None if subgroup_id is None else str(subgroup_id),
         var_dims_to_sync=list(f.attrs.get("var_dims_to_sync", [])),
         uns=uns,
         obsm=obsm,
         obsp=obsp,
     )
     if S_shell is not None:
-        _copy_matrices(S_shell, dd._S)
-    return dd
+        _copy_matrices(S_shell, hd._S)
+    return hd
 
 
-def read_h5_dd(path: str | Path, lazy: bool = False, var_columns: list[str] | None = None) -> DonorData:
-    """Read a DonorData from an HDF5 file.
+def read_h5_hd(path: str | Path, lazy: bool = False, var_columns: list[str] | None = None) -> HiData:
+    """Read a HiData from an HDF5 file.
 
     Parameters
     ----------
     path
-        File written by :meth:`DonorData.write_h5_dd`.
+        File written by :meth:`HiData.write_h5_hd`, or by donordata.
     lazy
         Keep ``X`` and layers on disk, dense ones as dask arrays and sparse ones as backed sparse
-        matrices, as :func:`read_zarr_dd` does. The file stays open while they are in use.
+        matrices, as :func:`read_zarr_hd` does. The file stays open while they are in use.
     var_columns
-        Columns of ``D.var`` to read, for example ``["chrom", "pos"]`` for genotypes. All by default.
+        Columns of ``G.var`` to read, for example ``["chrom", "pos"]`` for genotypes. All by default.
 
     Returns
     -------
-    DonorData
+    HiData
     """
     if lazy:
-        return _read_dd(h5py.File(str(path), "r"), lazy=True, var_columns=var_columns)
+        return _read_hd(h5py.File(str(path), "r"), lazy=True, var_columns=var_columns)
     with h5py.File(str(path), "r") as f:
-        return _read_dd(f, var_columns=var_columns)
+        return _read_hd(f, var_columns=var_columns)
 
 
-def read_zarr_dd(path: str | Path, var_columns: list[str] | None = None, lazy: bool = True) -> DonorData:
-    """Read a DonorData from a Zarr store.
+def read_zarr_hd(path: str | Path, var_columns: list[str] | None = None, lazy: bool = True) -> HiData:
+    """Read a HiData from a Zarr store.
 
     ``X`` and layers stay on disk, dense ones as dask arrays and sparse ones as backed sparse matrices,
     so selecting a subset, for example a single cell type, only reads that subset, and
-    :meth:`DonorData.aggregate` reads them block by block. A donor or sample level stored as an EHRData
+    :meth:`HiData.aggregate` reads them block by block. A group or subgroup level stored as an EHRData
     is read into memory with :func:`ehrdata.io.read_elem`.
 
     Parameters
     ----------
     path
-        Store written by :meth:`DonorData.write_zarr_dd`.
+        Store written by :meth:`HiData.write_zarr_hd`, or by donordata.
     var_columns
-        Columns of ``D.var`` to read, for example ``["chrom", "pos"]`` for genotypes. All by default.
+        Columns of ``G.var`` to read, for example ``["chrom", "pos"]`` for genotypes. All by default.
     lazy
         Read ``X`` and layers into memory with ``False``, for tools that need in-memory matrices.
 
     Returns
     -------
-    DonorData
+    HiData
     """
-    return _read_dd(zarr.open(str(path), mode="r"), lazy=lazy, var_columns=var_columns)
+    return _read_hd(zarr.open(str(path), mode="r"), lazy=lazy, var_columns=var_columns)
 
 
-def read_dd(path: str | Path, fmt: str | None = None, lazy: bool | None = None) -> DonorData:
-    """Read a DonorData from HDF5 or Zarr, choosing the format from the extension.
+def read_hd(path: str | Path, fmt: str | None = None, lazy: bool | None = None) -> HiData:
+    """Read a HiData from HDF5 or Zarr, choosing the format from the extension.
+
+    Files and stores written by donordata are read as well, see the :doc:`specification </io/spec>`.
 
     Parameters
     ----------
@@ -227,17 +250,17 @@ def read_dd(path: str | Path, fmt: str | None = None, lazy: bool | None = None) 
     fmt
         ``"h5"`` or ``"zarr"`` to override the detection.
     lazy
-        Keep ``X`` and layers on disk, see :func:`read_h5_dd` and :func:`read_zarr_dd`. Defaults to
+        Keep ``X`` and layers on disk, see :func:`read_h5_hd` and :func:`read_zarr_hd`. Defaults to
         ``False`` for HDF5 and ``True`` for Zarr.
 
     Returns
     -------
-    DonorData
+    HiData
 
     Examples
     --------
-    >>> dd = read_dd("donor_data.dd.h5")
-    >>> dd = read_dd("donor_data.dd.zarr")
+    >>> hd = read_hd("cohort.hd.h5")
+    >>> hd = read_hd("cohort.hd.zarr")
     """
     path = str(path).rstrip("/")
     if fmt is None:
@@ -248,7 +271,7 @@ def read_dd(path: str | Path, fmt: str | None = None, lazy: bool | None = None) 
         else:
             raise ValueError("Cannot detect format from file extension. Provide `fmt` as 'h5' or 'zarr'.")
     if fmt == "h5":
-        return read_h5_dd(path, lazy=bool(lazy))
+        return read_h5_hd(path, lazy=bool(lazy))
     if fmt == "zarr":
-        return read_zarr_dd(path, lazy=True if lazy is None else lazy)
+        return read_zarr_hd(path, lazy=True if lazy is None else lazy)
     raise ValueError("Unknown format: use 'h5' or 'zarr'.")

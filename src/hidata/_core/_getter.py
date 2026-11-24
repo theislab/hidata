@@ -6,10 +6,10 @@ import numpy as np
 import pandas as pd
 from mudata import MuData
 
-from donordata._core import _utils
+from hidata._core import _utils
 
-_PREFIXES = {"D": "donor", "S": "sample", "C": "cell"}
-_RANK = {"donor": 0, "sample": 1, "cell": 2}
+_PREFIXES = {"G": "group", "S": "subgroup", "C": "cell"}
+_RANK = {"group": 0, "subgroup": 1, "cell": 2}
 
 
 def _matrix_frame(matrix, key: str, index: pd.Index) -> pd.DataFrame:
@@ -35,19 +35,19 @@ def _variable(container, key: str, layer: str | None) -> pd.DataFrame | None:
     return pd.Series(_utils.column_of(matrix, position), index=container.obs_names, name=key).to_frame()
 
 
-def _find(dd, key: str, level: str, layer: str | None, mod: str | None):
+def _find(hd, key: str, level: str, layer: str | None, mod: str | None):
     """Locate ``key`` and return its level, its values and the cells they cover at the cell level."""
-    name, levels = key, [level] + [lv for lv in ("donor", "sample", "cell") if lv != level]
+    name, levels = key, [level] + [lv for lv in ("group", "subgroup", "cell") if lv != level]
     if ":" in key:
         prefix, rest = key.split(":", 1)
         if prefix in _PREFIXES:
             name, levels = rest, [_PREFIXES[prefix]]
-        elif isinstance(dd.C, MuData) and prefix in dd.C.mod:
+        elif isinstance(hd.C, MuData) and prefix in hd.C.mod:
             name, levels, mod = rest, ["cell"], prefix
     for candidate in levels:
-        if candidate not in dd.level_names:
+        if candidate not in hd.level_names:
             continue
-        container = dd.levels[candidate]
+        container = hd.levels[candidate]
         if candidate != "cell" or not isinstance(container, MuData) or mod is None:
             if name in container.obs.columns:
                 return candidate, container.obs[[name]], None
@@ -69,36 +69,36 @@ def _find(dd, key: str, level: str, layer: str | None, mod: str | None):
                 values = _variable(container, name, layer)
                 if values is not None:
                     return candidate, values, None
-        elif dd.levels[candidate].n_vars:
+        elif hd.levels[candidate].n_vars:
             values = _variable(container, name, None)
             if values is not None:
                 return candidate, values, None
     raise KeyError(f"'{key}' was not found at any level.")
 
 
-def get_df(dd, keys: str | Sequence[str], *, level: str, func, layer: str | None, mod: str | None) -> pd.DataFrame:
-    """Collect variables from any level of ``dd`` into a table at ``level``."""
-    dd._check_level(level, allow_cell=True)
+def get_df(hd, keys: str | Sequence[str], *, level: str, func, layer: str | None, mod: str | None) -> pd.DataFrame:
+    """Collect variables from any level of ``hd`` into a table at ``level``."""
+    hd._check_level(level, allow_cell=True)
     keys = [keys] if isinstance(keys, str) else list(keys)
-    index = dd.levels[level].obs_names
+    index = hd.levels[level].obs_names
     parts = []
     for key in keys:
-        source, frame, rows = _find(dd, key, level, layer, mod)
+        source, frame, rows = _find(hd, key, level, layer, mod)
         if frame.shape[1] == 1:
             frame = frame.set_axis([key], axis=1)
         if source == level:
             moved = frame
         elif _RANK[source] < _RANK[level]:
-            if source == "donor" and level == "sample":
-                codes = dd.sample_donor_codes
+            if source == "group" and level == "subgroup":
+                codes = hd.subgroup_group_codes
             else:
-                codes = dd._codes(source)
+                codes = hd._codes(source)
             moved = _utils.broadcast(frame, codes, index)
         else:
-            if source == "sample":
-                codes = dd.sample_donor_codes
+            if source == "subgroup":
+                codes = hd.subgroup_group_codes
             else:
-                codes = dd._codes(level)
+                codes = hd._codes(level)
                 if rows is not None:
                     codes = codes[rows]
             moved = _utils.collect(frame, codes, len(index), index, func, f"{level}s")
