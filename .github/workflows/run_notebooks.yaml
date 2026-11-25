@@ -33,6 +33,6 @@ jobs:
       - name: Install uv
         run: pip install uv
       - name: Install hidata and notebook dependencies
-        run: uv pip install --system ".[ehr,ml,tutorials]" "patpy @ git+https://github.com/lueckenlab/patpy.git@cellink_integration" nbconvert ipykernel
+        run: uv pip install --system ".[ehr,ml,tutorials]" "patpy[hidata] @ git+https://github.com/lueckenlab/patpy.git@main" nbconvert ipykernel
       - name: Run ${{ matrix.notebook }}
         run: jupyter nbconvert --to notebook --execute ${{ matrix.notebook }}
