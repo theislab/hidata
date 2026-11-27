@@ -1165,13 +1165,19 @@ class HiData:
 
         values = {}
         for column, name in names.items():
-            if _utils.is_constant_within(source[column], codes, first):
-                collected = source[column].iloc[first]
+            series = source[column]
+            is_numeric = pd.api.types.is_numeric_dtype(series) or pd.api.types.is_bool_dtype(series)
+            if func is not None and is_numeric:
+                collected = series.groupby(codes, observed=True).agg(func)
+                collected = collected.reindex(np.arange(n_units))
+                collected.index = target.index
+            elif _utils.is_constant_within(series, codes, first):
+                collected = series.iloc[first]
                 collected.index = target.index
             elif func is None:
                 raise ValueError(f"'{column}' varies within {level}s, pass func= to aggregate it.")
             else:
-                collected = source[column].groupby(codes, observed=True).agg(func)
+                collected = series.groupby(codes, observed=True).agg(func)
                 collected = collected.reindex(np.arange(n_units))
                 collected.index = target.index
             values[name] = collected

@@ -461,19 +461,19 @@ def broadcast(frame: pd.DataFrame, codes: np.ndarray, index: pd.Index) -> pd.Dat
 def collect(frame: pd.DataFrame, codes: np.ndarray, n_groups: int, index: pd.Index, func, what: str) -> pd.DataFrame:
     """Combine the rows of ``frame`` within groups given by ``codes``.
 
-    Columns that are constant within every group keep their value and dtype. Other numeric columns
-    are aggregated with ``func``, and other non numeric columns raise an error.
+    Numeric and boolean columns are aggregated with ``func``. Non-numeric columns that are constant
+    within every group keep their value and dtype, and varying non-numeric columns raise an error.
     """
     first = first_positions(codes, n_groups)
     columns = {}
     for column in frame.columns:
         values = frame[column]
-        if is_constant_within(values, codes, first):
-            columns[column] = values.array.take(first, allow_fill=True)
-        elif pd.api.types.is_numeric_dtype(values) or pd.api.types.is_bool_dtype(values):
+        if pd.api.types.is_numeric_dtype(values) or pd.api.types.is_bool_dtype(values):
             member = codes >= 0
             grouped = values[member].groupby(codes[member]).agg(func)
             columns[column] = grouped.reindex(np.arange(n_groups)).to_numpy()
+        elif is_constant_within(values, codes, first):
+            columns[column] = values.array.take(first, allow_fill=True)
         else:
             raise ValueError(f"'{column}' varies within {what}, use composition for categorical cell annotations.")
     return pd.DataFrame(columns, index=index)
